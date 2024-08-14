@@ -115,7 +115,6 @@ def half_ridge_rejection_sampling(ols_coefficients, X_train, y_train, prior_eta,
     incorrect_negative = np.any(samples1[:, negative_indices] > 0, axis=1)
     incorrect_signs = incorrect_positive | incorrect_negative
 
-
     # Set the entire row to NaN where any incorrect value is found
     samples1[incorrect_signs, :] = np.nan
     
