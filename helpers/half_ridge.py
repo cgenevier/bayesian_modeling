@@ -269,6 +269,14 @@ def calculate_binary_comparison(coefficients, X_test, y_test):
         else:
             total_correct += 0
 
+        if i==20:
+            print('Samples')
+            print(total_correct)
+            print(sample1)
+            print(sample2)
+            print(sample1_actual)
+            print(sample2_actual)
+
     return total_correct / 1000
 
 
