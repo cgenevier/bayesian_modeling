@@ -90,3 +90,36 @@ class Model:
         ' '.join(ols_formula.split(' ')[:-1])
 
         return self.ols_coefficients
+    
+    """
+    Generate a k-by-N binary matrix for cross-validation indexing
+        Parameters:
+        k (int): Number of partitions (folds).
+        training_set_value (int): Number of training set items to use
+
+        Returns:
+        np.ndarray: k-by-N binary matrix where 1 indicates a training set item and 0 indicates a test set item.
+    """
+    def cv_indexing(self, k, training_set_value):
+        N = self.total_data
+        
+        indices = np.arange(N)
+        np.random.shuffle(indices)
+        
+        # Distribute the remainder among the folds
+        fold_sizes = np.full(k, training_set_value, dtype=int)
+        fold_sizes[:training_set_value % k] += 1
+        
+        current = 0
+        cv = np.zeros((k, N), dtype=int)  # Initialize with zeros for testing indicies
+        
+        for i in range(k):
+            start, stop = current, current + fold_sizes[i]
+            training_indices = indices[start:stop]
+            
+            # Mark training set items in cv
+            cv[i, training_indices] = 1
+            
+            current = stop
+        
+        return cv

@@ -4,7 +4,6 @@ import pandas as pd
 np.random.seed(42)
 
 # PyMC for Bayesian Inference
-import arviz as az
 import pymc as pm
 
 # Import scipy stats
@@ -51,31 +50,6 @@ def half_ridge_mcmc(X_train, y_train, ols_coefficients, prior_eta=100):
         normal_trace = pm.sample(2000, tune=1000, chains=4, target_accept=0.9)
     
     return normal_trace
-
-
-# Calculate Bayesian posterior deterministically for gaussian likelihood and prior (effectively ridge regression)
-def ridge_regression(X_train, y_train):
-    # Prior variance (eta^2)
-    eta2 = 1.0
-
-    # Likelihood variance (sigma^2)
-    sigma2 = 1.0
-
-    # Compute posterior covariance
-    XtX = np.dot(X_train.T, X_train)
-    precision_prior = np.eye(X_train.shape[1]) / eta2
-    precision_likelihood = XtX / sigma2
-    precision_post = precision_likelihood + precision_prior
-    cov_post = np.linalg.inv(precision_post)
-
-    # Compute posterior mean
-    XtY = np.dot(X_train.T, y_train)
-    mean_post = np.dot(cov_post, XtY) / sigma2
-
-    print("Posterior Mean:\n", mean_post)
-    print("Posterior Covariance:\n", cov_post)
-
-    return mean_post, cov_post
 
 
 # Use rejection sampling to fit a half-ridge regression model to the data
@@ -188,98 +162,4 @@ def nearest_posdef(A):
 # Check if a matrix is positive definite
 def is_positive_definite(x):
     return np.all(np.linalg.eigvals(x) > 0)
-
-
-# Calculate the SSE for a Bayesian model
-def calculate_sse(coefficients, X_test, y_test):
-
-    var_means = pd.DataFrame(coefficients, index=[0])
-
-    # Create an intercept column
-    X_test_copy = X_test.copy()
-    X_test_copy['intercept'] = 1
-
-    # Align names of the test observations and means
-    names = X_test_copy.columns[1:]
-    X_test_copy = X_test_copy.loc[:, names]
-    var_means = var_means[names]
-
-    # Calculate estimate for each test observation using the average weights
-    results = pd.DataFrame(index = X_test_copy.index, columns = ['estimate'])
-    for row in X_test_copy.iterrows():
-        results.loc[row[0], 'estimate'] = np.dot(np.array(var_means), np.array(row[1]))
-        
-    # Metrics 
-    actual = np.array(y_test)
-    errors = results['estimate'] - actual
-    sse = np.mean(errors ** 2)
-
-    return sse
-
-
-# Calculate the binary comparison for the Bayesian model
-# Take 2 samples from the posterior distribution and compare them to determine 
-# if they are correctly ranked (i.e. if the first is larger than the second)
-# Do this for 1000 random pairs of samples, and return the proportion of times
-def calculate_binary_comparison(coefficients, X_test, y_test):
-
-    var_means = pd.DataFrame(coefficients, index=[0])
-
-    # Create an intercept column
-    X_test_copy = X_test.copy()
-    X_test_copy['intercept'] = 1
-
-    # Align names of the test observations and means
-    names = X_test_copy.columns[1:]
-    X_test_copy = X_test_copy.loc[:, names]
-    var_means = var_means[names]
-
-    # Calculate estimate for each test observation using the average weights
-    results = pd.DataFrame(index = X_test_copy.index, columns = ['estimate'])
-    for row in X_test_copy.iterrows():
-        results.loc[row[0], 'estimate'] = np.dot(np.array(var_means), np.array(row[1]))
-        
-    
-    # Metrics 
-    #actual = np.array(y_test)
-
-    # Binary comparison
-    total_correct = 0
-    for i in range(1000):
-        # Randomly select two samples from results
-        sample1 = results.sample(1)
-        sample2 = results.sample(1)
-
-        # Make sure sample 1 and 2 are not the same sample
-        while sample1.equals(sample2):
-            sample2 = results.sample(1)
-
-        # Get corresponding sample from actual
-        sample1_actual = y_test[sample1.index[0]]
-        sample2_actual = y_test[sample2.index[0]]
-
-        # Determine which sample estimate is larger
-        # If sample1 estimate is larger, and the same corresponding sample in y_test is larger, then the ranking is correct
-        if(sample1['estimate'].values[0] > sample2['estimate'].values[0] and sample1_actual > sample2_actual):
-            total_correct += 1
-        elif(sample2['estimate'].values[0] > sample1['estimate'].values[0] and sample2_actual > sample1_actual):
-            total_correct += 1
-        elif(sample1['estimate'].values[0] == sample2['estimate'].values[0] and sample1_actual == sample2_actual):
-            total_correct += 1
-        else:
-            total_correct += 0
-
-        if i==20:
-            print('Samples')
-            print(total_correct)
-            print(sample1)
-            print(sample2)
-            print(sample1_actual)
-            print(sample2_actual)
-
-    return total_correct / 1000
-
-
-
-
 
