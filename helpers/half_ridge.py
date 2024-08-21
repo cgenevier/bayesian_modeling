@@ -96,14 +96,6 @@ def half_ridge_rejection_sampling(ols_coefficients, X_train, y_train, prior_eta,
     
     # Sampling from a multivariate Gaussian with above mean and variance
     samples1 = multivariate_normal.rvs(mean=post_mean, cov=post_var, size=chain_length)
-    
-    # Ensure samples1 is 2D
-    if chain_length == 1:
-        samples1 = samples1[np.newaxis, :]
-    
-    # Cut-off rule: reflects the correct cue directions that are known in advance (ols_coefficients)
-    # Find rows with features that have an incorrect sign
-    #incorrect_signs = np.any((samples1[:, col_pos == 1] < 0) | (samples1[:, col_pos == 0] > 0), axis=1)
 
     # Identify the column indices for positive and negative weights
     positive_indices = np.where(col_pos == 1)[0]
