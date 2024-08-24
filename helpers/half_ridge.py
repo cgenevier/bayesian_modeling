@@ -82,14 +82,12 @@ def half_ridge_rejection_sampling(weight_signs, ols_coefficients, X_train, y_tra
     Y = y_train.values
     
     ### L2 half-ridge Fitting (Training Data) ###
-    #inter = pinv(np.dot(X.T, X) + penalty * np.eye(total_features))
 
     # posterior mean is a vector that is total_features-dimensional, as a function of penalty
     post_mean = np.dot(pinv(penalty * np.eye(total_features) + np.dot(X.T, X)), np.dot(X.T, Y))
     
     # posterior variance is a total_features x total_features covariance square matrix
     post_var = pinv(sigma_2 * np.eye(total_features) + (1/sigma_2)* np.dot(X.T, X))
-    #post_var = sigma_2 * inter
     
     # Ensure the posterior variance matrix is positive-definite
     if not is_positive_definite(post_var):
@@ -109,7 +107,7 @@ def half_ridge_rejection_sampling(weight_signs, ols_coefficients, X_train, y_tra
     incorrect_signs = incorrect_positive | incorrect_negative
 
     # Set the entire row to NaN where any incorrect value is found
-    #samples1[incorrect_signs, :] = np.nan
+    samples1[incorrect_signs, :] = np.nan
     
     # Calculate the posterior weights
     post_weights = np.nanmean(samples1, axis=0)
