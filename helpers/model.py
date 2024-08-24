@@ -72,22 +72,20 @@ class Model:
     
 
     # Determine signs of the coefficients using OLS
-    def determine_signs_of_coefficients(self, ols_use_all_data=True, X_train=None, y_train=None):
+    def get_ols_coefficients(self, ols_use_all_data=True, X_train=None, y_train=None):
         lr = LinearRegression()
 
         # Use Ordinary Least Squares Linear Regression to fit the data (training only or all data)
         if(ols_use_all_data):
-            lr.fit(self.df, self.df['target'])
+            lr.fit(self.X, self.y)
+            columns = self.X.columns
         else:
             lr.fit(X_train, y_train)
+            columns = X_train.columns
 
         self.ols_coefficients = {}
-        ols_formula = 'target = %0.2f +' % lr.intercept_
-        for i, col in enumerate(X_train.columns):
-            ols_formula += ' %0.2f * %s +' % (lr.coef_[i], col)
+        for i, col in enumerate(columns):
             self.ols_coefficients[col] = lr.coef_[i]
-            
-        ' '.join(ols_formula.split(' ')[:-1])
 
         return self.ols_coefficients
     
@@ -106,20 +104,25 @@ class Model:
         indices = np.arange(N)
         np.random.shuffle(indices)
         
-        # Distribute the remainder among the folds
-        fold_sizes = np.full(k, training_set_value, dtype=int)
-        fold_sizes[:training_set_value % k] += 1
-        
         current = 0
-        cv = np.zeros((k, N), dtype=int)  # Initialize with zeros for testing indicies
-        
+        cv = np.zeros((k, N), dtype=int)  # Initialize with zeros for testing indices
+
         for i in range(k):
-            start, stop = current, current + fold_sizes[i]
+            start, stop = current, current + training_set_value
             training_indices = indices[start:stop]
-            
+
+            # Handle wrap-around
+            if start > N:
+                # set training_indices equal to indexes from start % N to stop % N
+                training_indices = indices[start % N:stop % N]
+            elif stop > N:
+                training_indices = np.concatenate((indices[start % N:], indices[:stop % N]))
+            else:
+                training_indices = indices[start:stop]
+
             # Mark training set items in cv
             cv[i, training_indices] = 1
+
+            current = stop % N
             
-            current = stop
-        
         return cv

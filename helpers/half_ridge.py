@@ -53,24 +53,24 @@ def half_ridge_mcmc(X_train, y_train, ols_coefficients, prior_eta=100):
 
 
 # Use rejection sampling to fit a half-ridge regression model to the data
-def half_ridge_rejection_sampling(ols_coefficients, X_train, y_train, prior_eta, chain_length):
+def half_ridge_rejection_sampling(weight_signs, ols_coefficients, X_train, y_train, prior_eta, chain_length):
     print('Running half-ridge regression...')
 
     if(prior_eta == 0):
         # Create post_weights array with the same magnitude but with signs of ols_coefficients
         value = np.sqrt(2 / np.pi) # From 2018 Paper
-        post_weights = np.sign(list(ols_coefficients.values())) * value 
+        post_weights = weight_signs * value 
         post_weights = dict(zip(X_train.columns, post_weights))
-        print(post_weights)
         return post_weights
     elif(prior_eta == np.inf):
         # Simple OLS at the limit
+        # @todo - need to use euclidean projection into correct quadrant if the signs don't match!
+        
         return ols_coefficients
 
 
     # assumption that cue directionalities are known in advance (Dawes, 1979)
-    unitweights = np.sign(list(ols_coefficients.values()))
-    col_pos = (unitweights > 0).astype(int)
+    col_pos = (weight_signs > 0).astype(int)
     total_features = len(ols_coefficients)
 
     # Set penalty (lambda = sigma^2/eta^2) and sigma^2 (sigma = 1/eta)
@@ -82,13 +82,14 @@ def half_ridge_rejection_sampling(ols_coefficients, X_train, y_train, prior_eta,
     Y = y_train.values
     
     ### L2 half-ridge Fitting (Training Data) ###
-    inter = pinv(np.dot(X.T, X) + sigma_2 * penalty * np.eye(total_features))
+    #inter = pinv(np.dot(X.T, X) + penalty * np.eye(total_features))
 
     # posterior mean is a vector that is total_features-dimensional, as a function of penalty
-    post_mean = np.dot(inter, np.dot(X.T, Y))
+    post_mean = np.dot(pinv(penalty * np.eye(total_features) + np.dot(X.T, X)), np.dot(X.T, Y))
     
     # posterior variance is a total_features x total_features covariance square matrix
-    post_var = sigma_2 * inter
+    post_var = pinv(sigma_2 * np.eye(total_features) + (1/sigma_2)* np.dot(X.T, X))
+    #post_var = sigma_2 * inter
     
     # Ensure the posterior variance matrix is positive-definite
     if not is_positive_definite(post_var):
@@ -108,7 +109,7 @@ def half_ridge_rejection_sampling(ols_coefficients, X_train, y_train, prior_eta,
     incorrect_signs = incorrect_positive | incorrect_negative
 
     # Set the entire row to NaN where any incorrect value is found
-    samples1[incorrect_signs, :] = np.nan
+    #samples1[incorrect_signs, :] = np.nan
     
     # Calculate the posterior weights
     post_weights = np.nanmean(samples1, axis=0)
