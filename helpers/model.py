@@ -12,6 +12,7 @@ from ucimlrepo import fetch_ucirepo
 # Defines a class that will be used to load the dataset and model it
 class Model:
     def __init__(self):
+        self.dataset_info = None
         self.df = None
         self.X = None
         self.y = None
@@ -25,7 +26,12 @@ class Model:
     def import_from_uci(self, uci_dataset_id, save_to_file=False):
         # Load the dataset
         training_df = fetch_ucirepo(id=uci_dataset_id)
-        self.df = training_df.data.original
+
+        # Assign self.df to a combination of the original data and the target column
+        #self.df = training_df.data.original
+        self.df = pd.concat([training_df.data.features, training_df.data.targets], axis=1)
+        
+        # @todo Note that this removes end categorical variable - we may want to keep it for classification tasks
 
         # Save data and return it
         if(save_to_file):
@@ -37,10 +43,26 @@ class Model:
     def import_from_file(self, file_path):
         self.df = pd.read_csv(file_path)
         return self.df
+    
+    
+    # Get dataset metadata
+    def get_dataset_info(self, uci_dataset_id):
+        # Load the dataset
+        training_df = fetch_ucirepo(id=uci_dataset_id)
+
+        # Get the dataset metadata
+        self.dataset_info = training_df.metadata
+
+        return self.dataset_info
+
         
 
     # Normalize and format the data by setting the target column and splitting into features/target
     def format_data(self):
+
+        # Adjust categorical data (use one-hot encoding, drop the categorical column)
+        self.df = pd.get_dummies(self.df, drop_first=True)
+
         # Normalize the data
         self.df = (self.df - self.df.mean())/self.df.std()
 

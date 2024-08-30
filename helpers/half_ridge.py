@@ -112,7 +112,7 @@ def half_ridge_rejection_sampling(weight_signs, ols_coefficients, X_train, y_tra
     # Calculate the posterior weights
     post_weights = np.nanmean(samples1, axis=0)
     
-    # If all samples are NaN, retry sampling
+    # If all samples are NaN, retry sampling up to 3 times
     i = 0
     while np.isnan(post_weights).any() and i < 3:
         i += 1
