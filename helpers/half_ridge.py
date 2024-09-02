@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 np.random.seed(42)
 
+# Warnings for warning suppression
+import warnings
+
 # PyMC for Bayesian Inference
 import pymc as pm
 
@@ -54,7 +57,6 @@ def half_ridge_mcmc(X_train, y_train, ols_coefficients, prior_eta=100):
 
 # Use rejection sampling to fit a half-ridge regression model to the data
 def half_ridge_rejection_sampling(weight_signs, ols_coefficients, X_train, y_train, prior_eta, chain_length):
-    print('Running half-ridge regression...')
 
     if(prior_eta == 0):
         # Create post_weights array with the same magnitude but with signs of ols_coefficients
@@ -63,11 +65,25 @@ def half_ridge_rejection_sampling(weight_signs, ols_coefficients, X_train, y_tra
         post_weights = dict(zip(X_train.columns, post_weights))
         return post_weights
     elif(prior_eta == np.inf):
-        # Simple OLS at the limit
-        # @todo - need to use euclidean projection into correct quadrant if the signs don't match!
-        
-        return ols_coefficients
+        # Simple OLS at the limit (with euclidean projection according to correct signs)
 
+        # Keys are in a specific order that matches the order of weight_signs
+        keys = list(ols_coefficients.keys())
+
+        # Loop through the dictionary and compare the signs
+        for i, key in enumerate(keys):
+            correct_sign = np.sign(weight_signs[i])  # Get the corresponding correct sign from weight_signs
+            current_sign = np.sign(ols_coefficients[key])
+            
+            # If the current sign doesn't match the correct sign, set the coefficient to 0
+            if current_sign != correct_sign:
+                ols_coefficients[key] = 0
+
+        # NOTE: This may not be 100% correct - Matt says that 
+        # this is a good approximation but not the exact solution
+        # which requires the Mahalanobis distance I believe
+
+        return ols_coefficients
 
     # assumption that cue directionalities are known in advance (Dawes, 1979)
     col_pos = (weight_signs > 0).astype(int)
@@ -89,10 +105,9 @@ def half_ridge_rejection_sampling(weight_signs, ols_coefficients, X_train, y_tra
     # posterior variance is a total_features x total_features covariance square matrix
     post_var = pinv(sigma_2 * np.eye(total_features) + (1/sigma_2)* np.dot(X.T, X))
     
-    # Ensure the posterior variance matrix is positive-definite
-    if not is_positive_definite(post_var):
-        post_var = nearest_posdef(post_var)
-    
+    # Ensure the posterior variance matrix is symmetric positive-definite
+    post_var = nearest_posdef(post_var)
+
     # Sampling from a multivariate Gaussian with above mean and variance
     samples1 = multivariate_normal.rvs(mean=post_mean, cov=post_var, size=chain_length)
 
@@ -110,7 +125,9 @@ def half_ridge_rejection_sampling(weight_signs, ols_coefficients, X_train, y_tra
     samples1[incorrect_signs, :] = np.nan
     
     # Calculate the posterior weights
-    post_weights = np.nanmean(samples1, axis=0)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", category=RuntimeWarning)
+        post_weights = np.nanmean(samples1, axis=0)
     
     # If all samples are NaN, retry sampling up to 3 times
     i = 0

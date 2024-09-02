@@ -3,6 +3,12 @@ import pandas as pd
 import numpy as np
 np.random.seed(42)
 
+# Pairwise combinations
+from itertools import combinations
+
+# Label encoding
+from sklearn.preprocessing import LabelEncoder
+
 # Standard ML Models for comparison
 from sklearn.linear_model import LinearRegression
 
@@ -27,15 +33,28 @@ class Model:
         # Load the dataset
         training_df = fetch_ucirepo(id=uci_dataset_id)
 
-        # Assign self.df to a combination of the original data and the target column
-        #self.df = training_df.data.original
-        self.df = pd.concat([training_df.data.features, training_df.data.targets], axis=1)
-        
-        # @todo Note that this removes end categorical variable - we may want to keep it for classification tasks
+        # Iterate over number of targets (some UCI datasets have more than one) and save one dataset per target:
+        for i in range(training_df.data.targets.shape[1]):
+            # Get the name of the target column
+            target_column = training_df.data.targets.iloc[:, i].name
 
-        # Save data and return it
-        if(save_to_file):
-            self.df.to_csv('uci_ml_datasets/ucirepo_' + str(uci_dataset_id) + '.csv', index=False)
+            # Remove any columns in features that match the target_column name
+            features_df = training_df.data.features.drop(columns=[target_column], errors='ignore')
+
+            # Combine the modified features and the target column
+            self.df = pd.concat([features_df, training_df.data.targets.iloc[:, i]], axis=1)
+
+            # Remove '%' Signs
+            for column in self.df.columns:
+                # Check if all values in the column end with '%' and are strings
+                if self.df[column].apply(lambda x: isinstance(x, str) and x.endswith('%')).all():
+                    # Remove the '%' symbol and convert the column to numeric
+                    self.df[column] = self.df[column].str.rstrip('%').astype(float)
+
+            # Save data and return it
+            if(save_to_file):
+                self.df.to_csv('uci_ml_datasets/ucirepo_' + str(uci_dataset_id) + '_' + str(i) + '.csv', index=False)
+                
         return self.df
 
 
@@ -58,13 +77,44 @@ class Model:
         
 
     # Normalize and format the data by setting the target column and splitting into features/target
-    def format_data(self):
+    def format_data(self, categorical_encoding, missing_data_handling):
 
-        # Adjust categorical data (use one-hot encoding, drop the categorical column)
-        self.df = pd.get_dummies(self.df, drop_first=True)
+        # Handle missing values (except for drop, numerical values only)
+        if missing_data_handling == 'drop':
+            self.df = self.df.dropna()
+        elif missing_data_handling == 'mean':
+            self.df[self.df.select_dtypes(include=['number']).columns] = self.df.select_dtypes(include=['number']).apply(lambda x: x.fillna(x.mean()))
+        elif missing_data_handling == 'median':
+            self.df[self.df.select_dtypes(include=['number']).columns] = self.df.select_dtypes(include=['number']).apply(lambda x: x.fillna(x.median()))
+        elif missing_data_handling == 'mode':
+            self.df[self.df.select_dtypes(include=['number']).columns] = self.df.select_dtypes(include=['number']).apply(lambda x: x.fillna(self.df.mode().iloc[0]))
+        elif missing_data_handling == 'zero':
+            self.df[self.df.select_dtypes(include=['number']).columns] = self.df.select_dtypes(include=['number']).apply(lambda x: x.fillna(0))
+        elif missing_data_handling == 'ffill':
+            self.df[self.df.select_dtypes(include=['number']).columns] = self.df.select_dtypes(include=['number']).apply(lambda x: x.fillna(method='ffill'))
+        elif missing_data_handling == 'bfill':
+            self.df[self.df.select_dtypes(include=['number']).columns] = self.df.select_dtypes(include=['number']).apply(lambda x: x.fillna(method='bfill'))
+        elif missing_data_handling == 'interpolate':
+            self.df[self.df.select_dtypes(include=['number']).columns] = self.df.select_dtypes(include=['number']).apply(lambda x: x.interpolate())
+
+        # Adjust categorical data 
+        if categorical_encoding == 'label': # use label encoding
+            # Identify categorical columns
+            categorical_cols = self.df.select_dtypes(include=['object', 'category']).columns
+
+            # Initialize LabelEncoder
+            label_encoder = LabelEncoder()
+
+            # Apply LabelEncoder to each categorical column
+            for col in categorical_cols:
+                self.df[col] = label_encoder.fit_transform(self.df[col])
+
+        elif categorical_encoding == 'onehot': # use one-hot encoding, drop the categorical column
+            self.df = pd.get_dummies(self.df, drop_first=True)
 
         # Normalize the data
-        self.df = (self.df - self.df.mean())/self.df.std()
+        #self.df = (self.df - self.df.mean())/self.df.std()
+        self.df = (self.df - self.df.mean()) / self.df.std().where(self.df.std() != 0, 1)
 
         # Set target to the last column in the dataframe
         target = self.df.columns[-1]
@@ -83,6 +133,51 @@ class Model:
 
         # Return features + target
         return self.X, self.y
+
+        
+
+    # Create paired data for binary comparison
+    def create_paired_data(self):
+        N = len(self.X)
+        col_cues = self.X.columns
+        
+        # Generate all 2-element combinations of row indices
+        comb = np.array(list(combinations(range(N), 2)))
+        
+        # Shuffle each pair randomly
+        comb = np.apply_along_axis(np.random.permutation, 1, comb)
+        
+        y_pairs = np.zeros(comb.shape[0])
+        bdata_diff = np.zeros((comb.shape[0], len(col_cues)))
+
+        comparisons = []
+
+        for i, (index1, index2) in enumerate(comb):
+            # Extract the two rows based on indices
+            binary = self.X.iloc[[index1, index2]].values
+            y1, y2 = self.y.iloc[[index1, index2]]
+
+            # Store the binary comparison data
+            comparisons.append(self.X.iloc[[index1, index2]])
+
+            # Compare y values and assign 1 or -1
+            if y1 > y2:
+                y_pairs[i] = 1  # A is better
+            else:
+                y_pairs[i] = -1  # B is better
+
+            # Calculate the difference in feature values
+            bdata_diff[i, :] = binary[0] - binary[1]
+
+        # Convert differences to DataFrame and add labels
+        bdata_diff = pd.DataFrame(bdata_diff, columns=col_cues)
+        
+        # Convert y_pairs to a Series
+        y_pairs = pd.Series(y_pairs)
+    
+        # Update self.X and self.y with paired data
+        self.X = bdata_diff
+        self.y = y_pairs
     
 
     # Set up training dataset sizes 

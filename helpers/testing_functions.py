@@ -3,6 +3,9 @@ import numpy as np
 import pandas as pd
 np.random.seed(42)
 
+# import accuracy_score 
+from sklearn.metrics import accuracy_score
+
 
 # Calculate the SSE for a Bayesian model
 def calculate_sse(coefficients, X_test, y_test):
@@ -87,3 +90,31 @@ def calculate_binary_comparison(coefficients, X_test, y_test):
 
 
 
+
+# Calculate the accuracy for a Bayesian model
+def calculate_accuracy(coefficients, X_test, y_test, binary = False):
+
+    var_means = pd.DataFrame(coefficients, index=[0])
+
+    # Create an intercept column
+    X_test_copy = X_test.copy()
+    X_test_copy['intercept'] = 1
+
+    # Align names of the test observations and means
+    names = X_test_copy.columns[1:]
+    X_test_copy = X_test_copy.loc[:, names]
+    var_means = var_means[names]
+
+    # Calculate estimate for each test observation using the average weights
+    results = pd.DataFrame(index = X_test_copy.index, columns = ['estimate'])
+    for row in X_test_copy.iterrows():
+        results.loc[row[0], 'estimate'] = np.dot(np.array(var_means), np.array(row[1]))
+
+    # Convert estimates to binary predictions (e.g., 1 if estimate > 0, else -1)
+    if binary:
+        results['prediction'] = np.where(results['estimate'] > 0, 1, -1)
+
+    # Calculate accuracy
+    accuracy = accuracy_score(y_test, results['prediction'])
+
+    return accuracy

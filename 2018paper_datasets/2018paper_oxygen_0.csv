@@ -1,0 +1,15 @@
+Biological_Oxygen_Demand,Kjeldahl_Nitrogen,Total_Solids,Total_Volatile_Solids,Chemical_Oxygen_Demand,Day,Oxygen_Uptake
+1,0,1,1,1,0,360
+1,1,1,1,1,0,79
+1,1,1,1,1,0,56
+1,1,1,1,1,0,52
+1,0,1,0,1,0,23
+1,0,1,1,1,0,20
+1,0,1,1,1,0,13
+0,0,0,0,0,1,10
+0,1,0,0,0,1,9
+0,1,0,0,0,1,8
+0,0,0,1,0,1,7
+0,0,0,0,0,1,6
+0,1,0,0,0,1,4
+0,1,0,0,0,1,3
